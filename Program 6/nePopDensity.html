@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+  font: 10px sans-serif;
+}
+
+.caption {
+  font-weight: bold;
+}
+
+.key path {
+  display: none;
+}
+
+.key line {
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.county-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+}
+
+.tract-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: .3;
+}
+.state-border {
+  fill: none;
+  stroke: #000;
+  stroke-opacity: 1;
+}   
+
+</style>
+<body>
+<h1 style = "text-align:left; color:black; font:sans-serif"><bold>Nebraska Population Density, 2016</bold></h1>
+ <!--Toggle color button-->
+    <input class="color" type="button" name="change_colors" value="Toggle Color">
+    
+    <!--Toggle show boundaries button-->
+    <input class="boundary" type="button" name="show_boundary" value="Toggle Boundary"> 
+    
+    <input class ="tractBoundary" type="button" name="show_tractBoundary" value="Toggle Tract Boundary">
+    
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+<script>
+
+var switchColor = false;
+var showBounds = false; 
+var showTracts = false;
+    
+var width = 960,
+    height = 1100;
+
+var formatNumber = d3.format(",d");
+
+//projection for map placement
+var projection = d3.geo.albers()
+    .center([0, 41.674535])
+    .rotate([99.630576, 0])
+    .parallels([40, 43])
+    .scale(7000)
+    .translate([width / 2, height / 3]);
+    
+var path = d3.geo.path()
+    .projection(projection);
+
+var color = d3.scale.threshold()
+    .domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    .range(["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]);
+    
+//beginning of button color change boundary show & hide   
+    d3.select("input.color").on("click", changeColor);
+    d3.select("input.boundary").on("click", toggleBounds);
+    d3.select("input.tractBoundary").on("click", toggleTracts);
+    
+//Changes color range between Red and Blue
+  function changeColor() {
+    switchColor = !switchColor;
+      
+    if (switchColor){  
+    //blue scale    
+    color = d3.scale.threshold()
+    .domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    .range(["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"]);
+    }
+      else {
+    //red scale      
+    color = d3.scale.threshold()
+    .domain([1, 10, 50, 100, 500, 1000, 2000, 5000])
+    .range(["#fff7ec", "#fee8c8", "#fdd49e", "#fdbb84", "#fc8d59", "#ef6548", "#d7301f", "#b30000", "#7f0000"]); 
+      }
+    //redraw the map with correct color  
+    refresh();   
+  }
+   
+//Toggle showBounds boolean true or false
+function toggleBounds(){
+    showBounds = !showBounds;
+    refresh(); //refresh map
+}
+
+function toggleTracts(){
+    showTracts = !showTracts;
+    refresh();
+}
+//end of color/boundary change     
+
+// A position encoding for the key only.
+var x = d3.scale.linear()
+    .domain([0, 5100])
+    .range([0, 480])
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom")
+    .tickSize(13)
+    .tickValues(color.domain())
+    .tickFormat(function(d) { return d >= 100 ? formatNumber(d) : null; });
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height - 400);
+    
+    refresh();
+function refresh() {
+var g = svg.append("g")
+    .attr("class", "key")
+    //legend placement
+    .attr("transform", "translate(200,80)");
+
+g.selectAll("rect")
+    .data(color.range().map(function(d, i) {
+      return {
+        x0: i ? x(color.domain()[i - 1]) : x.range()[0],
+        x1: i < color.domain().length ? x(color.domain()[i]) : x.range()[1],
+        z: d
+      };
+    }))
+  .enter().append("rect")
+    .attr("height", 8)
+    .attr("x", function(d) { return d.x0; })
+    .attr("width", function(d) { return d.x1 - d.x0; })
+    .style("fill", function(d) { return d.z; });
+
+g.call(xAxis).append("text")
+    .attr("class", "caption")
+    .attr("y", -6)
+    .text("Population per square mile");
+
+d3.json("ne.json", function(error, ne) {
+  if (error) throw error;
+
+  var tracts = topojson.feature(ne, ne.objects.tracts);
+
+  // Clip tracts to land.
+  svg.append("defs").append("clipPath")
+      .attr("id", "clip-land")
+    .append("path")
+      .datum(topojson.feature(ne, ne.objects.counties))
+      .attr("d", path);
+
+  // Group tracts by color for faster rendering.
+  svg.append("g")
+      .attr("class", "tract")
+      .attr("clip-path", "url(#clip-land)")
+    .selectAll("path")
+      .data(d3.nest()
+        .key(function(d) { return color(d.properties.population / d.properties.area * 2.58999e6); })
+        .entries(tracts.features.filter(function(d) { return d.properties.area; })))
+    .enter().append("path")
+      .style("fill", function(d) { return d.key; })
+      .attr("d", function(d) { return path({type: "FeatureCollection", features: d.values}); });
+
+  // Draw interior county borders 
+    // function is called for each arc sharing adjacent polygons a and b
+    // Since a and b are not identical the function returns true and the arc is drawn
+    // boundary arcs are not drawn
+    svg.append("path")
+      .datum(topojson.mesh(ne, ne.objects.counties, function(a, b) { return a !== b; }))
+      .attr("class", "county-border")
+      .attr("d", path);
+
+  //following code draws the state boundary
+ /* svg.append("path")
+      .datum(topojson.mesh(ne, ne.objects.counties, function(a, b) { return a === b; }))
+      .attr("class", "state-border")
+      .attr("d", path); */
+  
+  //following code draws the tract boundary
+  /*svg.append("path")
+      .datum(topojson.mesh(ne, ne.objects.tracts, function(a, b) { return a !== b; }))
+      .attr("class", "tract-border")
+      .attr("d", path);*/
+    
+    if (showTracts) {
+        svg.append("path")
+            .datum(topojson.mesh(ne, ne.objects.tracts, function(a, b) { return a !== b; }))
+            .attr("class", "tract-border")
+            .attr("d", path);
+    }
+    if (showBounds) {
+        svg.append("path")
+        .datum(topojson.mesh(ne, ne.objects.counties, function(a, b) { return a === b; }))
+        .attr("class", "state-border")
+        .attr("d", path);
+    }
+});
+
+}
+d3.select(self.frameElement).style("height", height + "px");
+
+</script>
+<h5>Kevin Cai<br/>
+Instructior: Suresh Lodha<br/>
+CMPS 165: Data Programming for Visualization<br/>
+Fall 2016</h5>
+Collaborated with Steven Huang

@@ -1,0 +1,36 @@
+<!DOCTYPE HTML>
+<html>
+    <body>
+        <p id="0" style="color:red; background-color:#D3D3D3; margin:0px; padding:0px"></p>
+        <p id="1" style="color:brown; background-color:#D3D3D3; margin:0px; padding:0px"></p>
+        <p id="2" style="color:yellow; background-color:#D3D3D3; margin:0px; padding:0px"></p>
+        
+        <script>
+            var fruits = [
+            {
+                kind: "grape",
+                color: "red",
+                quantity: 12,
+                tasty: true
+            },
+            {
+                kind: "kiwi",
+                color: "brown",
+                quantity: 98,
+                tasty: true
+            },
+            {
+                kind: "banana",
+                color: "yellow",
+                quantity: 0,
+                tasty: true
+            }
+            ];
+            for (var i = 0; i < fruits.length; i = i + 1) {
+                var f = fruits[i].kind;
+                var fCount = fruits[i].quantity;
+                document.getElementById(i).innerHTML = fCount + " " + f;
+            }
+        </script>
+    </body>
+</html>
